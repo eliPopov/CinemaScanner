@@ -154,6 +154,9 @@ async def test_unmapped_cinema():
 
 def test_registered_adapter_and_endpoint_filters(monkeypatch):
     assert isinstance(registry.get("yes_planet"), YesPlanetAdapter)
+    monkeypatch.delitem(registry._adapters, "hot_cinema")
+    monkeypatch.delitem(registry._adapters, "lev")
+    monkeypatch.delitem(registry._adapters, "movieland")
     monkeypatch.setitem(
         registry._adapters,
         "yes_planet",

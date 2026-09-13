@@ -92,7 +92,7 @@ GET /api/screenings?date=2026-09-08
 GET /api/screenings/{screening_id}/seats
 ```
 
-The screening route has registered live Cinema City and Yes Planet adapters.
+The screening route has registered live Cinema City, Yes Planet, Hot Cinema, Lev, and Movieland adapters.
 Configured live branches are `cinema-city-glilot` (provider ID 1170) and
 `yes-planet-ayalon` (provider ID 1025). The former Cinema City Ayalon placeholder
 was replaced by Glilot because it did not map to a real provider branch.
@@ -110,6 +110,32 @@ Live checks on 2026-09-13 returned 68 Planet Ayalon and 97 Cinema City Glilot
 screenings. Counts change over time; use a current date in manual checks.
 
 ## Development conventions
+
+Movieland supports `movieland-karmiel` (TixTheatreId 1290). It fetches
+`https://movieland.co.il/api/Events?TheatreId=1290&Date=dd/mm/yyyy` anonymously,
+filters dates/theaters locally, and constructs fixed-origin booking links.
+No session or seat integration is implemented for Movieland yet. The live check
+on 2026-09-13 returned 31 screenings; all five chains returned combined results.
+
+Lev supports `lev-tel-aviv`. Its adapter fetches HTML from the public
+`https://www.lev.co.il/wp-content/themes/lev/ajax_data.php` using
+`action=movie_on_location_new`, `clang=he`, `loc=לב תל אביב`, and an ISO date.
+Beautiful Soup parses rows, ignores comments, and validates booking links against
+the fixed Lev HTTPS origin. Branch/date filtering relies on the provider because
+rows contain only times. Unknown metadata remains null; unexpected HTML is a 502.
+No sessions or seat operations are needed. The 2026-09-13 live check returned 22 screenings.
+
+Hot Cinema supports `hot-cinema-petah-tikva` (public theater 14, Bigger Picture site
+1194). Schedules use GET `/tickets/TheaterEvents2?theatreid=14&date=dd/mm/yyyy`
+on `https://www.hotcinema.co.il`; no session is needed. `open_session(cinema=...)`
+provides an async context for temporary anonymous authentication and read-only
+event/status calls against Bigger Picture. Tokens are never persisted or returned
+by the API; 401 triggers one renewal. No carts or seat holds are created. Seat-map
+normalization is still pending and the public seat route remains 501.
+
+Hot Cinema's live check on 2026-09-13 returned 34 screenings and successfully read
+an event with a temporary session. Raw seat status returned zero records, which
+does not imply an empty auditorium. See backend/README.md for session usage.
 
 - Keep cinema-specific parsing inside adapters.
 - Normalize every provider into the shared `Screening` and `SeatMap` models.

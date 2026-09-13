@@ -1,5 +1,8 @@
 from app.adapters.base import CinemaAdapter
 from app.adapters.cinema_city import CinemaCityAdapter
+from app.adapters.hot_cinema import HotCinemaAdapter
+from app.adapters.lev import LevAdapter
+from app.adapters.movieland import MovielandAdapter
 from app.adapters.yes_planet import YesPlanetAdapter
 
 
@@ -14,4 +17,6 @@ class AdapterRegistry:
         return sorted(self._adapters)
 
 
-registry = AdapterRegistry([CinemaCityAdapter(), YesPlanetAdapter()])
+registry = AdapterRegistry(
+    [CinemaCityAdapter(), YesPlanetAdapter(), HotCinemaAdapter(), LevAdapter(), MovielandAdapter()]
+)

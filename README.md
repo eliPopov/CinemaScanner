@@ -71,9 +71,10 @@ GET /api/screenings?date=YYYY-MM-DD
 
 Use today's date or a date with published screenings. Historical dates can return
 an empty list because schedules are fetched live and are not archived.
-Live schedule adapters currently support `cinema-city-glilot` and `yes-planet-ayalon`.
-Use `chain=cinema_city` or `chain=yes_planet` to filter by chain, or omit the
-filter to combine both schedules.
+Live schedule adapters support `cinema-city-glilot`, `yes-planet-ayalon`, and
+`hot-cinema-petah-tikva`, `lev-tel-aviv`, and `movieland-karmiel`. Use `chain=cinema_city`,
+`chain=yes_planet`, `chain=hot_cinema`, `chain=lev`, or `chain=movieland` to filter by chain,
+or omit the filter to combine schedules.
 
 PowerShell example with the server running:
 

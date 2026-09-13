@@ -120,6 +120,9 @@ async def test_winter_timezone_and_invalid_event_date(when):
 def test_registry_and_screenings_endpoint(monkeypatch):
     assert isinstance(registry.get("cinema_city"), CinemaCityAdapter)
     monkeypatch.delitem(registry._adapters, "yes_planet")
+    monkeypatch.delitem(registry._adapters, "hot_cinema")
+    monkeypatch.delitem(registry._adapters, "lev")
+    monkeypatch.delitem(registry._adapters, "movieland")
     monkeypatch.setitem(
         registry._adapters,
         "cinema_city",
