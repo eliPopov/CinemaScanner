@@ -1,4 +1,6 @@
 from app.adapters.base import CinemaAdapter
+from app.adapters.cinema_city import CinemaCityAdapter
+from app.adapters.yes_planet import YesPlanetAdapter
 
 
 class AdapterRegistry:
@@ -12,6 +14,4 @@ class AdapterRegistry:
         return sorted(self._adapters)
 
 
-# Adapters will be registered here as each chain integration is implemented.
-registry = AdapterRegistry()
-
+registry = AdapterRegistry([CinemaCityAdapter(), YesPlanetAdapter()])

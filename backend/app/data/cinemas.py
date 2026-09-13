@@ -1,16 +1,15 @@
 from app.models.cinema import Cinema
 
-
 # This is deliberately configuration for now. It can later be replaced by a
 # repository backed by PostgreSQL without changing the API routes.
 CINEMAS: list[Cinema] = [
     Cinema(
-        id="cinema-city-ayalon",
+        id="cinema-city-glilot",
         chain="cinema_city",
-        name="Cinema City Ayalon",
-        address="Abba Hillel Silver 8, Ramat Gan",
-        latitude=32.1016,
-        longitude=34.8237,
+        name="Cinema City Glilot",
+        address="Rav Mecher Building, Glilot Junction, Ramat Hasharon",
+        latitude=32.146436,
+        longitude=34.802543,
     ),
     Cinema(
         id="yes-planet-ayalon",
@@ -45,4 +44,3 @@ CINEMAS: list[Cinema] = [
         longitude=35.2985,
     ),
 ]
-

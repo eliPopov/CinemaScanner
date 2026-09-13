@@ -6,6 +6,10 @@ from app.models.screening import Screening
 from app.models.seat import SeatMap
 
 
+class ScheduleUnavailableError(Exception):
+    """The provider schedule could not be retrieved or validated."""
+
+
 class CinemaAdapter(Protocol):
     chain: str
 
@@ -14,4 +18,3 @@ class CinemaAdapter(Protocol):
     ) -> list[Screening]: ...
 
     async def get_seats(self, *, screening: Screening) -> SeatMap: ...
-

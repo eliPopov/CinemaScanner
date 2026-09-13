@@ -1,0 +1,131 @@
+# CinemaScanner project context
+
+## Goal
+
+CinemaScanner helps users find movie screenings in Israel.
+
+Planned flow:
+
+1. User enters a location (or uses current location) and a date.
+2. The backend finds cinemas within a configurable radius.
+3. It fetches screenings from the relevant cinema chains.
+4. The frontend displays movie, time, cinema, distance, and movie metadata.
+5. Only when the user opens a screening do we fetch the seat map/status.
+6. The app calculates occupancy and recommends available central seat pairs.
+
+## Cinema research
+
+The following chains have been investigated:
+
+- Cinema City: schedule, booking links, seat layout, and seat status are available.
+- Yes Planet: schedule, booking links, `seatplanV2`, and `seats-statusV2` are available.
+- Hot Cinema: schedule and booking links work. Seat maps render through the Bigger Picture platform; a session token is required for the seat API.
+- Lev Cinema: schedule and booking links work. The booking page renders an interactive PresGlobal seat map with available, occupied, selected, and accessible seats.
+- Movieland: schedule and booking links work. The booking page renders a Bigger Picture seat map; the seat API requires a session token.
+
+Important endpoint patterns found during research:
+
+### Cinema City
+
+```text
+GET https://www.cinema-city.co.il/tickets/Movies
+GET https://www.cinema-city.co.il/tickets/Events?MovieId={movie_id}&Date={dd/mm/yyyy}
+```
+
+Booking URL pattern:
+
+```text
+https://www.cinema-city.co.il/order/?eventID={event_id}&theaterId={theater_id}
+```
+
+Seat endpoints:
+
+```text
+https://tickets.cinema-city.co.il/api/seats/seatplanV2?venueId={venue_id}&seatplanId={seatplan_id}
+https://tickets.cinema-city.co.il/api/seats/seats-statusV2?presentationId={presentation_id}&venueTypeId=1&isReserved=1
+```
+
+The status keys use the form `section_internalSeatId_internalRowId`. The layout
+maps internal IDs to displayed row/seat numbers and physical coordinates.
+
+### Bigger Picture (Hot Cinema and Movieland)
+
+The public API uses endpoints similar to:
+
+```text
+/cus/event/{event_id}/seatsStatus
+/cus/seatStatus/venue/{venue}/venueSection/{section}/event/{event}
+/cus/venue/{venue}/venueSeatPlan/{seat_plan_id}/full
+```
+
+Unauthenticated requests return `401 No Session token found`. A browser booking
+session creates a temporary bearer token. Do not store tokens permanently or
+commit them to the repository.
+
+## Technology decisions
+
+- Backend: Python + FastAPI
+- Frontend: React + TypeScript (planned)
+- Database: PostgreSQL later; not required for the first live-data MVP
+- Browser/session automation: Playwright if needed for session-based providers
+- Project style: modular monolith, not microservices
+
+## Current backend
+
+The backend is under `backend/` and currently contains:
+
+- FastAPI app in `backend/app/main.py`
+- Pydantic models for cinemas, movies, screenings, and seats
+- Static cinema configuration in `backend/app/data/cinemas.py`
+- Adapter protocol in `backend/app/adapters/base.py`
+- Adapter registry in `backend/app/adapters/registry.py`
+- Routes for health, cinemas, screenings, and placeholder seat lookup
+- Tests in `backend/tests/`
+
+Current API routes:
+
+```text
+GET /health
+GET /api/cinemas
+GET /api/cinemas?chain=cinema_city
+GET /api/screenings?date=2026-09-08
+GET /api/screenings/{screening_id}/seats
+```
+
+The screening route has registered live Cinema City and Yes Planet adapters.
+Configured live branches are `cinema-city-glilot` (provider ID 1170) and
+`yes-planet-ayalon` (provider ID 1025). The former Cinema City Ayalon placeholder
+was replaced by Glilot because it did not map to a real provider branch.
+The seat route intentionally returns 501. Schedule failures return 502;
+unknown filters and unimplemented chains return an empty list.
+
+Planet schedules use:
+`https://www.planetcinema.co.il/il/data-api-service/v1/quickbook/10100/film-events/in-cinema/{cinema_id}/at-date/{YYYY-MM-DD}`.
+The adapter joins `body.events` to `body.films`, reads the requested and previous
+business days, and filters by Israel calendar date. Booking links and movie
+metadata come from the response. Cinema-specific parsing stays inside adapters.
+
+All automated tests use mocked HTTP; a test guard blocks real provider requests.
+Live checks on 2026-09-13 returned 68 Planet Ayalon and 97 Cinema City Glilot
+screenings. Counts change over time; use a current date in manual checks.
+
+## Development conventions
+
+- Keep cinema-specific parsing inside adapters.
+- Normalize every provider into the shared `Screening` and `SeatMap` models.
+- Do not fabricate data when an endpoint fails or a field is unknown.
+- Keep schedule fetching read-only; do not select, hold, or purchase seats.
+- Treat provider endpoints as undocumented and subject to change.
+- Do not commit cookies, bearer tokens, API keys, or other secrets.
+
+## Completed initial schedule task
+
+Implement the Cinema City schedule adapter:
+
+1. Fetch `/tickets/Movies`.
+2. Fetch `/tickets/Events` for each movie and requested date.
+3. Filter events to the requested cinema.
+4. Convert them to the normalized `Screening` model.
+5. Register the adapter in `app/adapters/registry.py`.
+6. Make `GET /api/screenings?date=YYYY-MM-DD` return real Cinema City results.
+7. Add tests using mocked HTTP responses; tests must not depend on live cinema sites.

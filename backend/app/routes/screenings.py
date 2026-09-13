@@ -2,6 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.adapters.base import ScheduleUnavailableError
 from app.adapters.registry import registry
 from app.data.cinemas import CINEMAS
 from app.models.screening import Screening
@@ -24,7 +25,10 @@ async def list_screenings(
         adapter = registry.get(cinema.chain)
         if adapter is None:
             continue
-        results.extend(await adapter.get_screenings(cinema=cinema, date=date))
+        try:
+            results.extend(await adapter.get_screenings(cinema=cinema, date=date))
+        except ScheduleUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
     return sorted(results, key=lambda screening: screening.starts_at)
 
 
@@ -36,4 +40,3 @@ async def get_seats(screening_id: str) -> dict[str, str]:
         status_code=501,
         detail=f"Seat lookup is not implemented yet for screening {screening_id}",
     )
-
