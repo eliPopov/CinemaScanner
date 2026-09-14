@@ -40,6 +40,19 @@ and seat adapters are being implemented incrementally.
 
 Run locally
 
+PowerShell, from the repository root (no activation required):
+
+```powershell
+cd backend
+# First-time setup only: python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Use the virtual environment's Python explicitly so Uvicorn uses the project's
+dependencies, including `tzdata`, required for `Asia/Jerusalem` on Windows.
+If a server is already running in the terminal, stop it with Ctrl+C first.
+
 From the repository root:
 
 cd backend
@@ -68,6 +81,8 @@ GET /api/cinemas
 GET /api/cinemas?chain=cinema_city
 
 GET /api/screenings?date=YYYY-MM-DD
+
+GET /api/screenings/{screening_id}/seats
 
 Use today's date or a date with published screenings. Historical dates can return
 an empty list because schedules are fetched live and are not archived.
@@ -104,3 +119,16 @@ Movieland schedule and session adapter
 PostgreSQL persistence
 
 React frontend
+
+Seat retrieval (2026-09-14)
+
+On-demand seat retrieval is implemented for all five adapters. Live checks passed
+for Cinema City, Yes Planet, Hot Cinema, and Movieland. Lev's layout endpoint
+currently returns 403, so its API lookup returns 502; live Lev support is pending.
+Movieland now has a temporary session adapter shared with Hot Cinema.
+
+Seat results include layout, availability, section IDs, seat kinds, status counts,
+and a retrieval timestamp. Unavailable seats are not automatically counted as
+occupied. No seats are selected or held. See backend/README.md for API details.
+Location/radius search, expanded branch coverage, occupancy calculations, and
+central-seat recommendations remain pending. PostgreSQL is optional for the MVP.

@@ -1,11 +1,14 @@
+import asyncio
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.adapters.base import ScheduleUnavailableError
+from app.adapters.base import ScheduleUnavailableError, ScreeningNotFoundError, SeatUnavailableError
 from app.adapters.registry import registry
+from app.adapters.seat_lookup import resolve_lookup
 from app.data.cinemas import CINEMAS
 from app.models.screening import Screening
+from app.models.seat import SeatMap
 
 router = APIRouter(prefix="/screenings", tags=["screenings"])
 
@@ -32,11 +35,16 @@ async def list_screenings(
     return sorted(results, key=lambda screening: screening.starts_at)
 
 
-@router.get("/{screening_id}/seats")
-async def get_seats(screening_id: str) -> dict[str, str]:
-    # Seat adapters will be added after the schedule adapters. Returning an
-    # explicit status is preferable to pretending that no seats exist.
-    raise HTTPException(
-        status_code=501,
-        detail=f"Seat lookup is not implemented yet for screening {screening_id}",
-    )
+@router.get("/{screening_id}/seats", response_model=SeatMap)
+async def get_seats(screening_id: str) -> SeatMap:
+    try:
+        lookup = resolve_lookup(screening_id)
+        adapter = registry.get(lookup.chain)
+        if adapter is None:
+            raise ScreeningNotFoundError("Unknown cinema chain")
+        async with asyncio.timeout(60):
+            return await adapter.get_seats(screening=lookup)
+    except ScreeningNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+    except (SeatUnavailableError, TimeoutError):
+        raise HTTPException(status_code=502, detail="Provider seat map is unavailable") from None

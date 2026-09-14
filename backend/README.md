@@ -2,6 +2,19 @@
 
 ## Run locally
 
+In PowerShell, from `backend/`, use the virtual environment directly:
+
+```powershell
+# First-time setup only: python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+This avoids accidentally launching a globally installed Uvicorn. If startup fails
+with `No module named 'tzdata'` or `No time zone found with key Asia/Jerusalem`,
+stop the existing server with Ctrl+C and use these commands. `tzdata` is already
+a declared project dependency; install and launch with the same Python.
+
 ```bash
 cd backend
 python -m venv .venv
@@ -49,7 +62,7 @@ The adapter fetches `/tickets/Movies`, then `/tickets/Events` for each movie
 using `MovieId` and a `dd/mm/yyyy` date, with at most four requests in flight.
 It parses the nested `Dates` arrays, filters by `TheaterId` and calendar date,
 deduplicates events, and returns times in `Asia/Jerusalem` (including DST).
-Unknown metadata remains null; seat lookup still returns 501. Provider HTTP,
+Unknown metadata remains null; seat lookup is described below. Provider HTTP,
 timeout, JSON, or schema failures return 502 instead of an empty or partial schedule.
 Schedules are fetched afresh on each request; no cache or database is required.
 
@@ -93,7 +106,7 @@ joined with commas when multiple languages are present. Dubbed or voiceover
 language takes precedence over original language. Recognized format attributes
 are normalized to display labels; unknown metadata remains null. Missing required
 fields, broken film references, HTTP errors, and timeouts produce 502, including
-when only one of the two business-day requests fails. Seat lookup remains 501.
+when only one of the two business-day requests fails. Seat lookup is described below.
 
 ## Schedule security
 
@@ -144,7 +157,7 @@ Only explicit event/status GET methods are exposed. No carts, seat selections,
 holds, or purchases are performed. Playwright is not required.
 
 Session errors raise `HotCinemaSessionError`; schedule errors become HTTP 502.
-The public seats endpoint remains 501 until SeatMap normalization is implemented.
+The public seats endpoint now normalizes the event layout and separate status feed.
 An empty raw status response does not establish seat availability or occupancy.
 
 ## Lev schedules
@@ -169,7 +182,7 @@ The booking `loc` value is preserved per row, not treated as the branch filter.
 
 Only the provider's recognized no-schedule notice becomes an empty list; blank,
 malformed, or unexpected HTML returns 502. Redirects are rejected. No sessions or
-booking pages are opened. Seat lookup remains 501. The live check on 2026-09-13
+booking pages are opened. Seat lookup is described below. The live check on 2026-09-13
 returned 22 Tel Aviv screenings; counts change over time.
 
 ## Movieland schedules
@@ -191,5 +204,68 @@ with `eventID`, `MovieId`, and `theaterId`; upstream `BookingNativeUrl` is not u
 Explicit `ThreeD`, `IsVip`, and `HebrewSubs` flags supply format/subtitle metadata.
 A dubbing flag alone does not identify a language, so spoken language stays null.
 Unknown poster paths and other metadata are not guessed. Failures return 502.
-Seat/session integration is deferred; the public seats endpoint remains 501.
+Seat/session integration now uses the shared Bigger Picture implementation below.
 The live check on 2026-09-13 returned 31 Karmiel screenings.
+
+## On-demand seat maps
+
+```text
+GET /api/screenings/{screening_id}/seats
+```
+
+Use the exact `id` from a schedule result. No date parameter, database, or prior
+request to the same server process is required. Only configured branches are
+accepted. The response contains `screening_id`, `total`, `available`, `occupied`,
+`held`, `unavailable`, `unknown`, `fetched_at`, and `seats`. Each seat includes
+`id`, `section_id`, `row`, `number`, `x`, `y`, `kind`, and `status`.
+
+- 200: complete normalized layout and current provider status.
+- 404: unrecognized ID/branch or provider-reported missing screening.
+- 502: failed, malformed, unsupported, or timed-out provider retrieval.
+
+Requests have a 60-second overall deadline. Seat results are not cached. Schedule
+fetching never initializes these sessions or calls seat endpoints. Only read-only
+requests and temporary anonymous session initialization are used; booking page
+JavaScript is never executed, and no carts, seat holds, or purchases are created.
+
+### Provider semantics
+
+Cinema City, Planet, and Lev share `presglobal_seats.py`. GET `/order/{id}` supplies
+an anonymous UUID cookie/header; GET `/api/presentations/{id}` supplies the venue,
+seat-plan ID, and actual venue type. POST `/api/seats/seatplanV2` reads the layout;
+GET `/api/seats/seats-statusV2` reads availability. POST here is a read operation.
+Origins are fixed to `tickets.cinema-city.co.il`, `tickets5.planetcinema.co.il`, and
+`ticket.lev.co.il`. Redirects are rejected and session data is never returned.
+
+PresGlobal status dictionary keys are AVAILABLE seat IDs, including values of 0.
+Missing keys mean unavailable; the feed does not distinguish sold, held, and
+blocked seats. Thus `occupied=0` means no explicitly reported sold seats, not zero
+actual occupancy. Do not calculate occupancy as `1 - available / total`.
+Coordinates include provider group translations and rotations.
+
+Hot Cinema and Movieland share `bigger_picture_session.py` (site IDs 1194 and 1290).
+The old HotCinemaSession imports remain compatible. Both adapters expose
+`open_session(cinema=...)`. Event details contain the seat layout; `seatsStatus`
+contains sparse sold/held records. Deleted cells are excluded. A valid empty
+status list means no reported sold/held seats only in conjunction with a valid
+layout. Coordinates are in provider grid units, local to `section_id`; they are
+not geographic coordinates. Unrecognized seat kinds are `other`.
+
+### Verification and remaining limitation
+
+Live read checks on 2026-09-14 returned layouts for Cinema City (33 seats), Planet
+(394), Hot Cinema (82), and Movieland (85), one screening per configured branch.
+Counts and availability change. Lev's status request succeeded, but its layout
+POST returned HTTP 403 even with an initialized session. Its parser and request
+flow are mock-tested; live Lev seat lookup currently returns 502. The reason for
+that rejection is unconfirmed and requires further provider investigation.
+
+Shared protocol behavior was verified against the providers' booking JavaScript:
+Cinema City and Lev's `/order/{id}` pages, Planet's ticket host, and Bigger
+Picture's `main.c82d55f06da9ea94.js` as served by Hot Cinema/Movieland. No tokens,
+cookies, or booking-page snapshots are stored in this repository.
+
+Tests use mocked HTTP and cover read-only request sequences, normalization,
+unknown IDs, malformed/mismatched payloads, redirects, failures, and the shared
+session's existing renewal/cleanup tests. Seat-pair recommendations and occupancy
+percentages are not implemented by this retrieval change.

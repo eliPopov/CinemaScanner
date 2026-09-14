@@ -18,7 +18,6 @@ def test_cinemas_are_listed() -> None:
     assert chains == {"cinema_city", "hot_cinema", "yes_planet", "lev", "movieland"}
 
 
-def test_unknown_screening_seats_are_explicitly_unimplemented() -> None:
+def test_unknown_screening_seats_return_not_found() -> None:
     response = client.get("/api/screenings/example/seats")
-    assert response.status_code == 501
-
+    assert response.status_code == 404

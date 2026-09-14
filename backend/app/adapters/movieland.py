@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 from app.adapters.base import ScheduleUnavailableError
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
-from app.models.seat import SeatMap
+from app.models.seat import SeatLookup, SeatMap
 
 BASE_URL = "https://movieland.co.il"
 # TixTheatreId verified from the public branch selector.
@@ -43,6 +43,13 @@ class MovielandAdapter:
 
     def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None):
         self._transport = transport
+
+    def open_session(self, *, cinema: Cinema):
+        from app.adapters.bigger_picture_session import BiggerPictureSession
+
+        if cinema.chain != self.chain or cinema.id not in THEATER_IDS:
+            raise ScheduleUnavailableError("Movieland theater mapping is missing")
+        return BiggerPictureSession(site_id=THEATER_IDS[cinema.id], transport=self._transport)
 
     async def get_screenings(
         self,
@@ -112,5 +119,13 @@ class MovielandAdapter:
         except (httpx.HTTPError, ValueError) as exc:
             raise ScheduleUnavailableError("Movieland schedule is unavailable") from exc
 
-    async def get_seats(self, *, screening: Screening) -> SeatMap:
-        raise NotImplementedError("Movieland seat lookup is not implemented")
+    async def get_seats(self, *, screening: Screening | SeatLookup) -> SeatMap:
+        from app.adapters.seat_lookup import validate_lookup
+
+        _, event_id = validate_lookup(screening, expected_chain=self.chain)
+        from app.adapters.bigger_picture_seats import get_seats
+
+        return await get_seats(
+            screening_id=screening.id, site_id=1290, event_id=event_id,
+            transport=self._transport,
+        )

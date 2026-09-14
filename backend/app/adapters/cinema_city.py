@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.adapters.base import ScheduleUnavailableError
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
-from app.models.seat import SeatMap
+from app.models.seat import SeatLookup, SeatMap
 
 BASE_URL = "https://www.cinema-city.co.il"
 # TixTheatreId from the provider's theater directory, not its internal Id.
@@ -120,5 +120,13 @@ class CinemaCityAdapter:
             raise ScheduleUnavailableError("Cinema City returned an invalid schedule response")
         return payload
 
-    async def get_seats(self, *, screening: Screening) -> SeatMap:
-        raise NotImplementedError("Cinema City seat lookup is not implemented")
+    async def get_seats(self, *, screening: Screening | SeatLookup) -> SeatMap:
+        from app.adapters.seat_lookup import validate_lookup
+
+        _, event_id = validate_lookup(screening, expected_chain=self.chain)
+        from app.adapters.presglobal_seats import get_seats
+
+        return await get_seats(
+            screening_id=screening.id, chain=self.chain, event_id=event_id,
+            transport=self._transport,
+        )

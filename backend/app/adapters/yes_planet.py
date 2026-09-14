@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from app.adapters.base import ScheduleUnavailableError
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
-from app.models.seat import SeatMap
+from app.models.seat import SeatLookup, SeatMap
 
 BASE_URL = "https://www.planetcinema.co.il"
 API_PATH = "/il/data-api-service/v1/quickbook/10100"
@@ -142,5 +142,13 @@ class YesPlanetAdapter:
             raise ScheduleUnavailableError("Planet schedule is unavailable") from exc
         return sorted(screenings.values(), key=lambda screening: screening.starts_at)
 
-    async def get_seats(self, *, screening: Screening) -> SeatMap:
-        raise NotImplementedError("Planet seat lookup is not implemented")
+    async def get_seats(self, *, screening: Screening | SeatLookup) -> SeatMap:
+        from app.adapters.seat_lookup import validate_lookup
+
+        _, event_id = validate_lookup(screening, expected_chain=self.chain)
+        from app.adapters.presglobal_seats import get_seats
+
+        return await get_seats(
+            screening_id=screening.id, chain=self.chain, event_id=event_id,
+            transport=self._transport,
+        )

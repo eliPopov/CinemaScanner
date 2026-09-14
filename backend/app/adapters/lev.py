@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup, Comment
 from app.adapters.base import ScheduleUnavailableError
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
-from app.models.seat import SeatMap
+from app.models.seat import SeatLookup, SeatMap
 
 BASE_URL = "https://www.lev.co.il"
 SCHEDULE_PATH = "/wp-content/themes/lev/ajax_data.php"
@@ -125,5 +125,13 @@ class LevAdapter:
         except (httpx.HTTPError, ValueError) as exc:
             raise ScheduleUnavailableError("Lev schedule is unavailable") from exc
 
-    async def get_seats(self, *, screening: Screening) -> SeatMap:
-        raise NotImplementedError("Lev seat lookup is not implemented")
+    async def get_seats(self, *, screening: Screening | SeatLookup) -> SeatMap:
+        from app.adapters.seat_lookup import validate_lookup
+
+        _, event_id = validate_lookup(screening, expected_chain=self.chain)
+        from app.adapters.presglobal_seats import get_seats
+
+        return await get_seats(
+            screening_id=screening.id, chain=self.chain, event_id=event_id,
+            transport=self._transport,
+        )

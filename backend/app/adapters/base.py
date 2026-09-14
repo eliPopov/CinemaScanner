@@ -3,7 +3,15 @@ from typing import Protocol
 
 from app.models.cinema import Cinema, Location
 from app.models.screening import Screening
-from app.models.seat import SeatMap
+from app.models.seat import SeatLookup, SeatMap
+
+
+class SeatUnavailableError(Exception):
+    """The provider seat map could not be retrieved or validated."""
+
+
+class ScreeningNotFoundError(Exception):
+    """The provider no longer exposes this screening."""
 
 
 class ScheduleUnavailableError(Exception):
@@ -17,4 +25,4 @@ class CinemaAdapter(Protocol):
         self, *, cinema: Cinema, date: date, location: Location | None = None
     ) -> list[Screening]: ...
 
-    async def get_seats(self, *, screening: Screening) -> SeatMap: ...
+    async def get_seats(self, *, screening: Screening | SeatLookup) -> SeatMap: ...

@@ -79,7 +79,7 @@ The backend is under `backend/` and currently contains:
 - Static cinema configuration in `backend/app/data/cinemas.py`
 - Adapter protocol in `backend/app/adapters/base.py`
 - Adapter registry in `backend/app/adapters/registry.py`
-- Routes for health, cinemas, screenings, and placeholder seat lookup
+- Routes for health, cinemas, screenings, and on-demand seat lookup
 - Tests in `backend/tests/`
 
 Current API routes:
@@ -96,7 +96,7 @@ The screening route has registered live Cinema City, Yes Planet, Hot Cinema, Lev
 Configured live branches are `cinema-city-glilot` (provider ID 1170) and
 `yes-planet-ayalon` (provider ID 1025). The former Cinema City Ayalon placeholder
 was replaced by Glilot because it did not map to a real provider branch.
-The seat route intentionally returns 501. Schedule failures return 502;
+The seat route dispatches to all five adapters (see seat status below). Schedule failures return 502;
 unknown filters and unimplemented chains return an empty list.
 
 Planet schedules use:
@@ -114,7 +114,7 @@ screenings. Counts change over time; use a current date in manual checks.
 Movieland supports `movieland-karmiel` (TixTheatreId 1290). It fetches
 `https://movieland.co.il/api/Events?TheatreId=1290&Date=dd/mm/yyyy` anonymously,
 filters dates/theaters locally, and constructs fixed-origin booking links.
-No session or seat integration is implemented for Movieland yet. The live check
+Movieland now shares the temporary Bigger Picture session and seat integration with Hot Cinema. The live check
 on 2026-09-13 returned 31 screenings; all five chains returned combined results.
 
 Lev supports `lev-tel-aviv`. Its adapter fetches HTML from the public
@@ -130,8 +130,7 @@ Hot Cinema supports `hot-cinema-petah-tikva` (public theater 14, Bigger Picture 
 on `https://www.hotcinema.co.il`; no session is needed. `open_session(cinema=...)`
 provides an async context for temporary anonymous authentication and read-only
 event/status calls against Bigger Picture. Tokens are never persisted or returned
-by the API; 401 triggers one renewal. No carts or seat holds are created. Seat-map
-normalization is still pending and the public seat route remains 501.
+by the API; 401 triggers one renewal. No carts or seat holds are created. Seat-map normalization and the public seat route are now implemented.
 
 Hot Cinema's live check on 2026-09-13 returned 34 screenings and successfully read
 an event with a temporary session. Raw seat status returned zero records, which
@@ -155,3 +154,37 @@ Implement the Cinema City schedule adapter:
 5. Register the adapter in `app/adapters/registry.py`.
 6. Make `GET /api/screenings?date=YYYY-MM-DD` return real Cinema City results.
 7. Add tests using mocked HTTP responses; tests must not depend on live cinema sites.
+
+## Seat retrieval update (2026-09-14)
+
+`GET /api/screenings/{screening_id}/seats` resolves the ID returned by schedules
+and fetches seats on demand, without refetching schedules or storing screenings.
+Unknown IDs/branches and missing provider events return 404; provider/schema
+failures and the 60-second overall deadline return 502.
+
+Cinema City, Yes Planet, and Lev use shared PresGlobal retrieval: initialize an
+anonymous UUID with GET `/order/{id}`, fetch `/api/presentations/{id}`, POST the
+read-only `/api/seats/seatplanV2`, and GET `/api/seats/seats-statusV2`.
+The UUID/cookies exist only for that request. No booking scripts are executed.
+Status keys identify available seats; missing keys mean unavailable, not
+necessarily occupied. Rotation and group offsets are applied to coordinates.
+
+Hot Cinema and Movieland share `BiggerPictureSession`. Their event response
+contains the layout (`vsp.vsedl[].vssedl`); the separate status feed reports sold
+and held seats. Deleted layout cells are excluded. An empty successful status
+feed means no reported sold/held seats only when paired with a valid layout.
+No cart creation, seat selection, holds, or purchases are performed.
+
+SeatMap includes section IDs, display row/seat labels, coordinates, seat kinds,
+status counts (available, occupied, held, unavailable, unknown), and fetched_at.
+Occupied means explicitly reported sold seats; do not interpret zero occupied
+as a verified empty auditorium for PresGlobal. Occupancy percentage and central
+seat-pair recommendations remain future work. Coordinates use provider units;
+Bigger Picture coordinates are local to each section.
+
+Live read checks on 2026-09-14 succeeded for Cinema City (33 seats), Planet
+(394), Hot Cinema (82), and Movieland (85), one screening each. Lev status reads
+succeeded, but its layout POST returned 403 even after session initialization.
+Lev's integration is implemented and mock-tested, but live retrieval remains
+blocked by that provider response and returns 502. Do not claim live seat support
+for Lev until its layout request succeeds. The cause of the 403 is unconfirmed.

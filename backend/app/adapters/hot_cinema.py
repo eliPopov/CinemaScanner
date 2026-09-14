@@ -8,7 +8,7 @@ from app.adapters.base import ScheduleUnavailableError
 from app.adapters.hot_cinema_session import HotCinemaSession
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
-from app.models.seat import SeatMap
+from app.models.seat import SeatLookup, SeatMap
 
 BASE_URL = "https://www.hotcinema.co.il"
 # Public theater ID and Bigger Picture site ID verified from the theater/booking pages.
@@ -128,5 +128,13 @@ class HotCinemaAdapter:
         except (httpx.HTTPError, ValueError) as exc:
             raise ScheduleUnavailableError("Hot Cinema schedule is unavailable") from exc
 
-    async def get_seats(self, *, screening: Screening) -> SeatMap:
-        raise NotImplementedError("Hot Cinema seat-map normalization is not implemented")
+    async def get_seats(self, *, screening: Screening | SeatLookup) -> SeatMap:
+        from app.adapters.seat_lookup import validate_lookup
+
+        _, event_id = validate_lookup(screening, expected_chain=self.chain)
+        from app.adapters.bigger_picture_seats import get_seats
+
+        return await get_seats(
+            screening_id=screening.id, site_id=1194, event_id=event_id,
+            transport=self._transport,
+        )
