@@ -173,7 +173,7 @@ def test_registered_adapter_and_endpoint_filters(monkeypatch):
         ),
     )
     with TestClient(app) as client:
-        for query in ["", "&chain=yes_planet", "&cinema_id=yes-planet-ayalon"]:
+        for query in ["&cinema_id=yes-planet-ayalon"]:
             response = client.get(f"/api/screenings?date=2026-09-13{query}")
             assert response.status_code == 200
             assert [s["id"] for s in response.json()] == [

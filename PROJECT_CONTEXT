@@ -10,7 +10,8 @@ Planned flow:
 2. The backend finds cinemas within a configurable radius.
 3. It fetches screenings from the relevant cinema chains.
 4. The frontend displays movie, time, cinema, distance, and movie metadata.
-5. Only when the user opens a screening do we fetch the seat map/status.
+5. Nearby search returns seat-count summaries when available; opening a screening
+   can fetch its complete seat map/status.
 6. The app calculates occupancy and recommends available central seat pairs.
 
 ## Cinema research
@@ -90,7 +91,14 @@ GET /api/cinemas
 GET /api/cinemas?chain=cinema_city
 GET /api/screenings?date=2026-09-08
 GET /api/screenings/{screening_id}/seats
+GET /api/search?date=YYYY-MM-DD&latitude=...&longitude=...&radius_km=35
 ```
+
+`GET /api/search` uses Haversine distance against the static cinema catalog.
+It defaults to a 35 km radius, returns cinemas in distance order, and groups
+each cinema's screenings with seat-count summaries where supported. Provider
+schedule or seat failures are represented for the affected result rather than
+discarding the entire nearby search.
 
 The screening route has registered live Cinema City, Yes Planet, Hot Cinema, Lev, and Movieland adapters.
 Configured live branches are `cinema-city-glilot` (provider ID 1170) and
@@ -183,8 +191,7 @@ seat-pair recommendations remain future work. Coordinates use provider units;
 Bigger Picture coordinates are local to each section.
 
 Live read checks on 2026-09-14 succeeded for Cinema City (33 seats), Planet
-(394), Hot Cinema (82), and Movieland (85), one screening each. Lev status reads
-succeeded, but its layout POST returned 403 even after session initialization.
-Lev's integration is implemented and mock-tested, but live retrieval remains
-blocked by that provider response and returns 502. Do not claim live seat support
-for Lev until its layout request succeeds. The cause of the 403 is unconfirmed.
+(394), Hot Cinema (82), and Movieland (85), one screening each. A 2026-10-21
+Lev check confirmed that a current screening returns both layout and status after
+anonymous-session initialization. Lev's `data-siteid` changes by screening;
+booking-site IDs 5 through 10 are all mapped to `lev-tel-aviv`.

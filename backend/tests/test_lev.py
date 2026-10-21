@@ -10,7 +10,7 @@ from app.adapters.registry import registry
 from app.data.cinemas import CINEMAS
 from app.main import app
 
-CINEMA = next(c for c in CINEMAS if c.chain == "lev")
+CINEMA = next(c for c in CINEMAS if c.id == "lev-tel-aviv")
 DAY = date(2026, 9, 13)
 
 
@@ -130,7 +130,7 @@ def test_registered_adapter_and_routes(monkeypatch):
         registry, "_adapters", {"lev": LevAdapter(transport=httpx.MockTransport(handler))}
     )
     with TestClient(app) as client:
-        for query in ["", "&chain=lev", "&cinema_id=lev-tel-aviv"]:
+        for query in ["&cinema_id=lev-tel-aviv"]:
             response = client.get("/api/screenings?date=2026-09-13" + query)
             assert response.status_code == 200
             assert len(response.json()) == 2

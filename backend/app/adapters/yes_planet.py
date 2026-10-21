@@ -5,6 +5,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from app.adapters.base import ScheduleUnavailableError
+from app.data.cinema_catalog import CINEMA_CATALOG
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
 from app.models.seat import SeatLookup, SeatMap
@@ -12,7 +13,11 @@ from app.models.seat import SeatLookup, SeatMap
 BASE_URL = "https://www.planetcinema.co.il"
 API_PATH = "/il/data-api-service/v1/quickbook/10100"
 # externalCode from Planet's public apiSitesList directory.
-CINEMA_IDS = {"yes-planet-ayalon": "1025"}
+CINEMA_IDS = {
+    config.cinema.id: str(config.schedule_id)
+    for config in CINEMA_CATALOG
+    if config.cinema.chain == "yes_planet" and config.schedule_id is not None
+}
 # Exact booking hosts verified for the configured branches. Add hosts only after verification.
 BOOKING_HOSTS = frozenset({"tickets5.planetcinema.co.il"})
 ISRAEL = ZoneInfo("Asia/Jerusalem")

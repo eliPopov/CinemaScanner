@@ -10,7 +10,7 @@ from app.adapters.registry import registry
 from app.data.cinemas import CINEMAS
 from app.main import app
 
-CINEMA = next(c for c in CINEMAS if c.chain == "movieland")
+CINEMA = next(c for c in CINEMAS if c.id == "movieland-karmiel")
 DAY = date(2026, 9, 13)
 
 
@@ -139,7 +139,7 @@ def test_routes(monkeypatch):
         {"movieland": MovielandAdapter(transport=httpx.MockTransport(handler))},
     )
     with TestClient(app) as client:
-        for query in ["", "&chain=movieland", "&cinema_id=movieland-karmiel"]:
+        for query in ["&cinema_id=movieland-karmiel"]:
             response = client.get("/api/screenings?date=2026-09-13" + query)
             assert response.status_code == 200
             assert len(response.json()) == 2

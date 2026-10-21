@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.routes import cinemas, health, screenings
+from app.routes import cinemas, health, screenings, search
 
 app = FastAPI(
     title="CinemaScanner API",
@@ -10,5 +10,6 @@ app = FastAPI(
 
 app.include_router(health.router)
 app.include_router(cinemas.router, prefix="/api")
+app.include_router(search.router, prefix="/api")
 app.include_router(screenings.router, prefix="/api")
 

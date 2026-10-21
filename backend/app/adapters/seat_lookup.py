@@ -3,16 +3,24 @@
 import re
 
 from app.adapters.base import ScreeningNotFoundError
+from app.data.cinema_catalog import CINEMA_CATALOG
 from app.models.seat import SeatLookup
 
-# Public screening-ID branch components. Lev's booking site is 9 for Tel Aviv.
+# Public screening-ID branch components. Lev's `data-siteid` identifies the
+# auditorium/building in the booking system, so it varies between screenings at
+# the same Tel Aviv branch. These values are returned by the public Tel Aviv
+# schedule and must all resolve to the configured cinema.
 BRANCHES = {
-    ("cinema_city", "1170"): "cinema-city-glilot",
-    ("yes_planet", "1025"): "yes-planet-ayalon",
-    ("hot_cinema", "14"): "hot-cinema-petah-tikva",
-    ("movieland", "1290"): "movieland-karmiel",
-    ("lev", "9"): "lev-tel-aviv",
+    (config.cinema.chain, str(config.schedule_id)): config.cinema.id
+    for config in CINEMA_CATALOG
+    if config.cinema.seats_supported
+    and config.schedule_id is not None
+    and config.cinema.chain != "lev"
 }
+# Lev's `data-siteid` identifies an auditorium/building rather than its public
+# branch. It varies by Tel Aviv screening; the public schedule currently emits
+# these IDs for that configured branch.
+BRANCHES.update({("lev", str(site_id)): "lev-tel-aviv" for site_id in range(5, 11)})
 
 
 def resolve_lookup(screening_id: str) -> SeatLookup:

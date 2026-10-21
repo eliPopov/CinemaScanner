@@ -19,7 +19,11 @@ async def list_screenings(
     chain: str | None = Query(default=None),
     cinema_id: str | None = Query(default=None),
 ) -> list[Screening]:
-    cinemas = [cinema for cinema in CINEMAS if chain is None or cinema.chain == chain]
+    cinemas = [
+        cinema
+        for cinema in CINEMAS
+        if cinema.schedule_supported and (chain is None or cinema.chain == chain)
+    ]
     if cinema_id is not None:
         cinemas = [cinema for cinema in cinemas if cinema.id == cinema_id]
 

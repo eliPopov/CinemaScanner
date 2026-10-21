@@ -6,13 +6,20 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.adapters.base import ScheduleUnavailableError
 from app.adapters.hot_cinema_session import HotCinemaSession
+from app.data.cinema_catalog import CINEMA_CATALOG
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
 from app.models.seat import SeatLookup, SeatMap
 
 BASE_URL = "https://www.hotcinema.co.il"
 # Public theater ID and Bigger Picture site ID verified from the theater/booking pages.
-CINEMA_IDS = {"hot-cinema-petah-tikva": (14, 1194)}
+CINEMA_IDS = {
+    config.cinema.id: (int(config.schedule_id), config.seat_site_id)
+    for config in CINEMA_CATALOG
+    if config.cinema.chain == "hot_cinema"
+    and config.schedule_id is not None
+    and config.seat_site_id is not None
+}
 ISRAEL = ZoneInfo("Asia/Jerusalem")
 
 

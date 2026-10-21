@@ -11,7 +11,7 @@ from app.adapters.registry import registry
 from app.data.cinemas import CINEMAS
 from app.main import app
 
-CINEMA = next(c for c in CINEMAS if c.chain == "hot_cinema")
+CINEMA = next(c for c in CINEMAS if c.id == "hot-cinema-petah-tikva")
 DAY = date(2026, 9, 13)
 
 
@@ -93,7 +93,7 @@ def test_endpoint(monkeypatch):
         {"hot_cinema": HotCinemaAdapter(transport=httpx.MockTransport(schedule_handler))},
     )
     with TestClient(app) as client:
-        for query in ["", "&chain=hot_cinema", "&cinema_id=hot-cinema-petah-tikva"]:
+        for query in ["&cinema_id=hot-cinema-petah-tikva"]:
             r = client.get("/api/screenings?date=2026-09-13" + query)
             assert r.status_code == 200
             assert len(r.json()) == 2

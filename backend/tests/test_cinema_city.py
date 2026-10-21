@@ -9,6 +9,7 @@ from app.adapters.cinema_city import CinemaCityAdapter
 from app.adapters.registry import registry
 from app.data.cinemas import CINEMAS
 from app.main import app
+from app.routes.screenings import list_screenings
 
 CINEMA = next(cinema for cinema in CINEMAS if cinema.id == "cinema-city-glilot")
 DAY = date(2026, 9, 8)
@@ -131,18 +132,20 @@ def test_registry_and_screenings_endpoint(monkeypatch):
         ),
     )
     with TestClient(app) as client:
-        for query in ["", "&chain=cinema_city", "&cinema_id=cinema-city-glilot"]:
-            response = client.get(f"/api/screenings?date=2026-09-08{query}")
-            assert response.status_code == 200
-            assert len(response.json()) == 2
-            assert response.json()[0]["starts_at"] == "2026-09-08T18:00:00+03:00"
+        # The provider's former schedule API was retired. The branch stays in
+        # the catalog for location and seat lookup, but is not queried until
+        # the replacement schedule API is normalized.
+        response = client.get("/api/screenings?date=2026-09-08&cinema_id=cinema-city-glilot")
+        assert response.status_code == 200
+        assert response.json() == []
         assert client.get("/api/screenings?date=invalid").status_code == 422
         assert client.get("/api/screenings").status_code == 422
         for query in ["chain=yes_planet", "cinema_id=unknown"]:
             assert client.get(f"/api/screenings?date=2026-09-08&{query}").json() == []
 
 
-def test_endpoint_returns_502_on_provider_failure(monkeypatch):
+@pytest.mark.asyncio
+async def test_disabled_cinema_city_schedule_does_not_call_provider(monkeypatch):
     monkeypatch.setitem(
         registry._adapters,
         "cinema_city",
@@ -150,7 +153,4 @@ def test_endpoint_returns_502_on_provider_failure(monkeypatch):
             transport=httpx.MockTransport(lambda request: httpx.Response(503)),
         ),
     )
-    with TestClient(app) as client:
-        response = client.get("/api/screenings?date=2026-09-08")
-    assert response.status_code == 502
-    assert response.json() == {"detail": "Cinema City schedule is unavailable"}
+    assert await list_screenings(date=DAY) == []

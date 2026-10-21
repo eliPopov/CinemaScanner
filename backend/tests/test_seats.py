@@ -244,6 +244,18 @@ def test_unknown_or_malformed_ids_never_contact_providers(screening_id):
         resolve_lookup(screening_id)
 
 
+@pytest.mark.parametrize("site_id", range(5, 11))
+def test_lev_booking_site_ids_resolve_to_tel_aviv(site_id):
+    lookup = resolve_lookup(f"lev:{site_id}:123")
+    assert lookup.chain == "lev"
+    assert lookup.cinema_id == "lev-tel-aviv"
+
+
+def test_lev_unknown_booking_site_id_is_rejected():
+    with pytest.raises(ScreeningNotFoundError):
+        resolve_lookup("lev:11:123")
+
+
 @pytest.mark.parametrize(
     "failure", ["missing_uuid", "bad_presentation", "layout_403", "status_403"]
 )

@@ -6,6 +6,7 @@ import httpx
 from bs4 import BeautifulSoup, Comment
 
 from app.adapters.base import ScheduleUnavailableError
+from app.data.cinema_catalog import CINEMA_CATALOG
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
 from app.models.seat import SeatLookup, SeatMap
@@ -13,7 +14,11 @@ from app.models.seat import SeatLookup, SeatMap
 BASE_URL = "https://www.lev.co.il"
 SCHEDULE_PATH = "/wp-content/themes/lev/ajax_data.php"
 # Values from the website's locationfilter1 select, not the legacy numeric location IDs.
-LOCATIONS = {"lev-tel-aviv": "לב תל אביב"}
+LOCATIONS = {
+    config.cinema.id: str(config.schedule_id)
+    for config in CINEMA_CATALOG
+    if config.cinema.chain == "lev" and config.schedule_id is not None
+}
 EMPTY_MESSAGE = 'רשימת הסרטים לסופ"ש מתעדכנת עד ליום שלישי אחה"צ של אותו שבוע'
 ISRAEL = ZoneInfo("Asia/Jerusalem")
 

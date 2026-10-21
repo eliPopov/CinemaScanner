@@ -32,15 +32,33 @@ Current endpoints:
 - `GET /api/cinemas`
 - `GET /api/cinemas?chain=cinema_city`
 - `GET /api/screenings?date=YYYY-MM-DD`
+- `GET /api/search?date=YYYY-MM-DD&latitude=...&longitude=...&radius_km=35`
 
-Schedule adapters are intentionally registered incrementally. Until an adapter
-is implemented, that chain returns no screenings rather than fabricated data.
+`app/data/cinema_catalog.py` is the MVP source of cinema data instead of a
+database. It currently lists 39 public branches: 8 Cinema City, 6 Planet, 12
+Hot Cinema, 6 Movieland, and 7 Lev. Each API cinema record states whether
+schedule and seat retrieval are currently supported.
 
-Cinema City schedules are live for the configured Glilot branch:
+Planet, Hot Cinema, Movieland, and Lev schedules are enabled for every listed
+branch. Cinema City changed its public schedule platform in October 2026;
+Cinema City branches remain in the catalog and Glilot seat lookup remains
+available, but schedule fetching is disabled until the replacement API is
+normalized.
 
-```text
-GET /api/screenings?date=YYYY-MM-DD&chain=cinema_city
-GET /api/screenings?date=YYYY-MM-DD&cinema_id=cinema-city-glilot
+## Nearby cinema search
+
+`GET /api/search` filters the static catalog by great-circle distance from the
+provided WGS84 `latitude` and `longitude`, using the Haversine formula. The
+default `radius_km` is 35; valid values are greater than 0 and no more than 100.
+Results are ordered nearest first and grouped by cinema. Each screening includes
+`seat_status` plus `seat_availability` counts when its provider supports and
+returns a seat map. Schedule and seat-provider failures are reported on the
+affected cinema or screening so one unavailable provider does not discard other
+nearby results.
+
+```powershell
+$screeningDate = Get-Date -Format 'yyyy-MM-dd'
+Invoke-RestMethod "http://localhost:8000/api/search?date=$screeningDate&latitude=32.0853&longitude=34.7818&radius_km=35"
 ```
 
 Replace `YYYY-MM-DD` with today's date or a date with published screenings.
@@ -48,31 +66,20 @@ For example, in PowerShell with the server running locally:
 
 ```powershell
 $screeningDate = Get-Date -Format 'yyyy-MM-dd'
-Invoke-RestMethod "http://localhost:8000/api/screenings?date=$screeningDate&cinema_id=cinema-city-glilot"
+Invoke-RestMethod "http://localhost:8000/api/screenings?date=$screeningDate&cinema_id=yes-planet-ayalon"
 ```
 
 An empty JSON list (`[]`) means no matching screenings were returned. Historical
 dates can return no events: this service fetches the current provider schedule
-and does not archive past screenings. Unknown cinema IDs and chains without an
-implemented adapter also return an empty list. Use `/api/cinemas` to find valid IDs;
-currently `cinema-city-glilot`, `yes-planet-ayalon`, `hot-cinema-petah-tikva`, `lev-tel-aviv`, and `movieland-karmiel`
-have live schedule adapters.
+and does not archive past screenings. Unknown cinema IDs, cinemas with disabled
+schedule support, and chains without an implemented adapter also return an empty
+list. Use `/api/cinemas` to find valid IDs and capability fields.
 
-The adapter fetches `/tickets/Movies`, then `/tickets/Events` for each movie
-using `MovieId` and a `dd/mm/yyyy` date, with at most four requests in flight.
-It parses the nested `Dates` arrays, filters by `TheaterId` and calendar date,
-deduplicates events, and returns times in `Asia/Jerusalem` (including DST).
-Unknown metadata remains null; seat lookup is described below. Provider HTTP,
-timeout, JSON, or schema failures return 502 instead of an empty or partial schedule.
-Schedules are fetched afresh on each request; no cache or database is required.
-
-The old Cinema City Ayalon entry was a placeholder with no matching provider
-branch. It has been replaced by Glilot, using `TixTheatreId=1170` from the
-provider's public theater directory. To add a branch, add its cinema configuration
-and its verified `TixTheatreId` mapping in `app/adapters/cinema_city.py`.
-The directory and response structure were checked on 2026-09-08 at
-`https://www.cinema-city.co.il/` and
-`https://www.cinema-city.co.il/tickets/Theaters?MovieId=6123&Date=08/09/2026`.
+The former Cinema City adapter remains covered by offline tests and Glilot's
+legacy provider ID remains configured for seat IDs. Its former schedule
+endpoints no longer serve the public site, so the API deliberately does not
+call them. Schedules are fetched afresh for supported branches; no cache or
+database is required.
 
 Run offline tests with `python -m pytest -q`. Adapter and endpoint tests use
 `httpx.MockTransport` and never contact cinema sites. Install the declared
@@ -255,10 +262,10 @@ not geographic coordinates. Unrecognized seat kinds are `other`.
 
 Live read checks on 2026-09-14 returned layouts for Cinema City (33 seats), Planet
 (394), Hot Cinema (82), and Movieland (85), one screening per configured branch.
-Counts and availability change. Lev's status request succeeded, but its layout
-POST returned HTTP 403 even with an initialized session. Its parser and request
-flow are mock-tested; live Lev seat lookup currently returns 502. The reason for
-that rejection is unconfirmed and requires further provider investigation.
+Counts and availability change. Lev's booking-site ID varies by screening (the
+Tel Aviv schedule currently returns IDs 5 through 10), so all of those IDs map
+to the configured Tel Aviv cinema. A live check on 2026-10-21 confirmed that
+Lev returns both a layout and seat status after anonymous-session initialization.
 
 Shared protocol behavior was verified against the providers' booking JavaScript:
 Cinema City and Lev's `/order/{id}` pages, Planet's ticket host, and Bigger

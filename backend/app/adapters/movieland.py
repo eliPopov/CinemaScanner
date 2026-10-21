@@ -5,13 +5,18 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from app.adapters.base import ScheduleUnavailableError
+from app.data.cinema_catalog import CINEMA_CATALOG
 from app.models.cinema import Cinema, Location
 from app.models.screening import Movie, Screening
 from app.models.seat import SeatLookup, SeatMap
 
 BASE_URL = "https://movieland.co.il"
 # TixTheatreId verified from the public branch selector.
-THEATER_IDS = {"movieland-karmiel": 1290}
+THEATER_IDS = {
+    config.cinema.id: int(config.schedule_id)
+    for config in CINEMA_CATALOG
+    if config.cinema.chain == "movieland" and config.schedule_id is not None
+}
 ISRAEL = ZoneInfo("Asia/Jerusalem")
 
 
